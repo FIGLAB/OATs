@@ -79,5 +79,4 @@ The server listens on port 4070. Device data is stored in `server/user/`. Point 
 
 ## License
 
-This project is part of ongoing research. Please contact the authors for usage terms.
-# OATs
+Please contact the authors for usage terms.
