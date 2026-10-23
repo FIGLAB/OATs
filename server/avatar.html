@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR444NHQV7"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-QR444NHQV7');
+  </script>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OATs: Create Your Avatar</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <h1>Create Your OAT Avatar</h1>
+  <p class="sub">Ahhh great to be here! But.. who am I..?</p>
+  <label>What is my name?</label>
+  <input type="text" id="avatar-name" placeholder="" autocomplete="off"/>
+  <label>What am I? (Be specific)</label>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span style="font-size:1rem;white-space:nowrap">I am</span>
+    <input type="text" id="object-description" placeholder="e.g., Jade plant, office door, coffee machine" autocomplete="off"/>
+  </div>
+  <div class="row">
+    <button id="btn-back" onclick="window.location.href='/main?device='+new URLSearchParams(window.location.search).get('device')">Back</button>
+    <button id="btn-generate" class="btn-primary">Generate Avatar</button>
+    <button id="btn-next" class="btn-primary" disabled>Save & Continue</button>
+  </div>
+  <div id="status"></div>
+  <div id="avatar-preview">
+    <canvas id="avatar-canvas"></canvas>
+  </div>
+  <script>
+    const params  = new URLSearchParams(window.location.search);
+    const device  = params.get('device') || '';
+    const statusEl = document.getElementById('status');
+    const btnGen     = document.getElementById('btn-generate');
+    const btnNext    = document.getElementById('btn-next');
+
+    const preview  = document.getElementById('avatar-preview');
+    const canvas   = document.getElementById('avatar-canvas');
+    let avatarGenerated = false;  // true if user clicked Generate Avatar this session
+
+    // On load: prefill saved config and show existing base avatar if already generated
+    (async () => {
+      if (!device) return;
+      try {
+        const [configRes, avatarRes] = await Promise.all([
+          fetch('/config?device='         + encodeURIComponent(device)),
+          fetch('/pending_avatar?device=' + encodeURIComponent(device))
+        ]);
+
+        if (configRes.ok) {
+          const d = await configRes.json();
+          if (d.name) document.getElementById('avatar-name').value = d.name;
+          if (d.desp) document.getElementById('object-description').value = d.desp;
+        }
+
+        if (avatarRes.ok) {
+          // Base avatar already exists — display it without regenerating
+          const buf = await avatarRes.arrayBuffer();
+          drawBitmap(buf);
+          preview.style.display = 'block';
+          btnGen.textContent    = 'Regenerate';
+          btnNext.disabled      = false;
+          statusEl.textContent  = 'Existing avatar loaded.';
+          statusEl.className    = 'ok';
+        }
+      } catch(e) {}
+
+    })();
+
+
+    function drawBitmap(buf) {
+      const dv = new DataView(buf);
+      const w  = dv.getUint16(0);
+      const h  = dv.getUint16(2);
+      const px = new Uint8Array(buf, 8);
+      const stride = Math.ceil(w / 8);
+      canvas.width  = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      const img = ctx.createImageData(w, h);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const bit = (px[y * stride + (x >> 3)] >> (7 - (x & 7))) & 1;
+          const v   = bit ? 255 : 0;
+          const i   = (y * w + x) * 4;
+          img.data[i] = img.data[i+1] = img.data[i+2] = v;
+          img.data[i+3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    btnGen.addEventListener('click', async () => {
+      const name = document.getElementById('avatar-name').value.trim();
+      const desp = document.getElementById('object-description').value.trim();
+      if (!name || !desp) { statusEl.textContent = 'Please fill the form.'; statusEl.className = 'err'; return; }
+      btnGen.disabled  = true;
+      btnNext.disabled = true;
+      preview.style.display = 'none';
+      statusEl.textContent = 'Generating avatar\u2026';
+      statusEl.className = 'info';
+      try {
+        const genRes = await fetch('/generate', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: name, desp: desp, device: device})
+        });
+        const genData = await genRes.json();
+        if (!genData.ok) throw new Error(genData.error || 'Generation failed');
+
+        const bitmapRes = await fetch('/pending_avatar?device=' + encodeURIComponent(device) + '&ts=' + Date.now());
+        const buf = await bitmapRes.arrayBuffer();
+        drawBitmap(buf);
+        preview.style.display = 'block';
+
+        avatarGenerated    = true;
+        btnNext.disabled   = false;
+        btnGen.textContent = 'Generate Again';
+        statusEl.textContent = 'Avatar ready!';
+        statusEl.className = 'ok';
+      } catch(e) {
+        statusEl.textContent = 'Failed: ' + e.message;
+        statusEl.className = 'err';
+      }
+      btnGen.disabled = false;
+    });
+
+    btnNext.addEventListener('click', async () => {
+      btnNext.disabled = true;
+      btnGen.disabled  = true;
+      statusEl.textContent = 'Starting\u2026';
+      statusEl.className   = 'info';
+      try {
+        const name = document.getElementById('avatar-name').value.trim();
+        const desp = document.getElementById('object-description').value.trim();
+        const res  = await fetch('/start_generation', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({device, generated: avatarGenerated, name, desp})
+        });
+        await res.json();
+        window.location.href = '/sensors?device=' + encodeURIComponent(device);
+      } catch(e) {
+        statusEl.textContent = 'Failed: ' + e.message;
+        statusEl.className   = 'err';
+        btnNext.disabled = false;
+        btnGen.disabled  = false;
+      }
+    });
+  </script>
+</body>
+</html>

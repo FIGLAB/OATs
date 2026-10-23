@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR444NHQV7"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-QR444NHQV7');
+  </script>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OATs: Sensor Selection</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <h1>Sensor Selection</h1>
+  <p class="sub">What should I sense?</p>
+
+  <div class="check-row">
+    <input type="checkbox" id="cb-temperature"/>
+    <span>Temperature</span>
+  </div>
+  <div class="check-row">
+    <input type="checkbox" id="cb-humidity"/>
+    <span>Humidity</span>
+  </div>
+  <div class="check-row">
+    <input type="checkbox" id="cb-sound"/>
+    <span>Sound Level</span>
+  </div>
+
+  <label>Sensor 1</label>
+  <select id="pin1">
+    <option value="">— None —</option>
+    <option value="water">Water / Moisture</option>
+    <option value="light">Light Intensity</option>
+    <option value="motion">Motion</option>
+    <option value="occupancy">Occupancy</option>
+  </select>
+
+  <label>Sensor 2</label>
+  <select id="pin2">
+    <option value="">— None —</option>
+    <option value="water">Water / Moisture</option>
+    <option value="light">Light Intensity</option>
+    <option value="motion">Motion</option>
+    <option value="occupancy">Occupancy</option>
+  </select>
+
+  <label>Sensor 3</label>
+  <select id="pin3">
+    <option value="">— None —</option>
+    <option value="water">Water / Moisture</option>
+    <option value="light">Light Intensity</option>
+    <option value="motion">Motion</option>
+    <option value="occupancy">Occupancy</option>
+  </select>
+
+  <label>Sensor 4</label>
+  <select id="pin4">
+    <option value="">— None —</option>
+    <option value="water">Water / Moisture</option>
+    <option value="light">Light Intensity</option>
+    <option value="motion">Motion</option>
+    <option value="occupancy">Occupancy</option>
+  </select>
+
+  <!-- <p style="color:#ff0000;font-size:.90rem;margin:18px 0 4px">**Before pressing "Save & Continue", connect your sensors on the board!**</p> -->
+  <div class="row">
+    <button id="btn-back">Back</button>
+    <button id="btn-save" class="btn-primary">Save & Continue</button>
+  </div>
+  <div id="status"></div>
+
+  <script>
+    const params   = new URLSearchParams(window.location.search);
+    const device   = params.get('device') || '';
+    const statusEl = document.getElementById('status');
+    const btnBack  = document.getElementById('btn-back');
+    const btnSave  = document.getElementById('btn-save');
+
+    // Prefill saved sensor config if it exists
+    (async () => {
+      if (!device) return;
+      try {
+        const res = await fetch('/sensors_config?device=' + encodeURIComponent(device));
+        if (!res.ok) return;
+        const d = await res.json();
+        if (d.temperature) document.getElementById('cb-temperature').checked = d.temperature;
+        if (d.humidity)    document.getElementById('cb-humidity').checked    = d.humidity;
+        if (d.sound)       document.getElementById('cb-sound').checked       = d.sound;
+        if (d.pin1)        document.getElementById('pin1').value = d.pin1;
+        if (d.pin2)        document.getElementById('pin2').value = d.pin2;
+        if (d.pin3)        document.getElementById('pin3').value = d.pin3;
+        if (d.pin4)        document.getElementById('pin4').value = d.pin4;
+      } catch(e) {}
+    })();
+
+    btnBack.addEventListener('click', () => {
+      window.location.href = '/avatar?device=' + encodeURIComponent(device);
+    });
+
+    btnSave.addEventListener('click', async () => {
+      btnSave.disabled = true;
+      btnBack.disabled = true;
+      statusEl.textContent = 'Generating example agent behaviors\u2026';
+      statusEl.className = 'info';
+      const config = {
+        device:      device,
+        temperature: document.getElementById('cb-temperature').checked,
+        humidity:    document.getElementById('cb-humidity').checked,
+        sound:       document.getElementById('cb-sound').checked,
+        pin1:        document.getElementById('pin1').value,
+        pin2:        document.getElementById('pin2').value,
+        pin3:        document.getElementById('pin3').value,
+        pin4:        (document.getElementById('pin4') || {}).value || '',
+      };
+      try {
+        const res = await fetch('/save_sensors', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(config)
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Save failed');
+
+        window.location.href = '/behaviors?device=' + encodeURIComponent(device);
+      } catch(e) {
+        statusEl.textContent = 'Failed: ' + e.message;
+        statusEl.className = 'err';
+        btnSave.disabled = false;
+        btnBack.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

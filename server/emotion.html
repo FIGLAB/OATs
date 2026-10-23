@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR444NHQV7"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-QR444NHQV7');
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OATs: Emotion</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { max-width: 480px; text-align: center; }
+    #emotion-container { margin-top: 24px; }
+    #emotion-canvas {
+      width: 200px;
+      height: 200px;
+      image-rendering: pixelated;
+      border-radius: 12px;
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+    }
+    #emotion-label {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin: 16px 0 4px;
+      text-transform: capitalize;
+    }
+    #reason {
+      font-size: 0.95rem;
+      color: #555;
+      margin: 0 0 8px;
+      min-height: 1.4em;
+    }
+    #timestamp {
+      font-size: 0.8rem;
+      color: #999;
+    }
+    #device-status {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin: 8px 0 0;
+    }
+    #device-state.on { color: #16a34a; }
+    #device-state.off { color: #dc2626; }
+    #battery { color: #555; font-weight: 500; }
+    #battery:not(:empty)::before { content: '\00b7'; margin: 0 8px; color: #999; }
+    #battery.low { color: #dc2626; font-weight: 600; }
+    .row { justify-content: center; }
+  </style>
+</head>
+<body>
+  <h1>OAT Agent's Feeling</h1>
+
+  <div id="emotion-container">
+    <canvas id="emotion-canvas" width="200" height="200"></canvas>
+    <div id="emotion-label">--</div>
+    <div id="reason">Loading...</div>
+    <div id="timestamp"></div>
+    <div id="sensor-data" style="color:#1d4ed8;font-size:0.85rem;margin:8px 0 0;min-height:1em"></div>
+    <div id="device-status"><span id="device-state"></span><span id="battery"></span></div>
+  </div>
+
+  <div id="status"></div>
+
+  <div class="row" style="margin-top:24px;">
+    <button onclick="window.location.href='/main?device='+new URLSearchParams(window.location.search).get('device')">Go Back to Main Page</button>
+    <button class="btn-primary" onclick="refresh()">Refresh Page</button>
+  </div>
+
+<script>
+function formatTimestamp(ts) {
+  if (!ts) return '';
+  const parts = ts.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2})-(\d{2})-(\d{2})/);
+  if (!parts) return ts;
+  let h = parseInt(parts[4], 10);
+  const m = parts[5];
+  const s = parts[6];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return parts[1] + '-' + parts[2] + '-' + parts[3] + ' ' + h + ':' + m + ':' + s + ' ' + ampm;
+}
+
+// "America/New_York" -> "EDT" for the viewer's locale; falls back to the raw name.
+function zoneAbbr(tz) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {timeZone: tz, timeZoneName: 'short'}).formatToParts(new Date());
+    const p = parts.find(x => x.type === 'timeZoneName');
+    return p ? p.value : tz;
+  } catch (e) { return tz; }
+}
+
+const params = new URLSearchParams(window.location.search);
+const device = params.get('device') || '';
+
+const canvas   = document.getElementById('emotion-canvas');
+const ctx      = canvas.getContext('2d');
+const labelEl  = document.getElementById('emotion-label');
+const reasonEl = document.getElementById('reason');
+const tsEl     = document.getElementById('timestamp');
+const statusEl   = document.getElementById('status');
+const deviceStatusEl = document.getElementById('device-state');
+const subtitleEl = document.getElementById('subtitle');
+
+// Render a 1-bit packed bin buffer onto the canvas
+function renderBin(buf) {
+  const view = new DataView(buf);
+  const w = view.getUint16(0);  // big-endian width
+  const h = view.getUint16(2);  // big-endian height
+  canvas.width = w;
+  canvas.height = h;
+  const imgData = ctx.createImageData(w, h);
+  const pixels = new Uint8Array(buf, 8); // skip 8-byte header
+  for (let i = 0; i < w * h; i++) {
+    const byteIdx = Math.floor(i / 8);
+    const bitIdx = 7 - (i % 8);
+    const on = (pixels[byteIdx] >> bitIdx) & 1;
+    const v = on ? 255 : 0;
+    const off = i * 4;
+    imgData.data[off]     = v;
+    imgData.data[off + 1] = v;
+    imgData.data[off + 2] = v;
+    imgData.data[off + 3] = 255;
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+// Load avatar name from config
+if (device) {
+  fetch('/config?device=' + encodeURIComponent(device))
+    .then(r => r.json())
+    .then(cfg => {
+      if (cfg.name) {
+        document.querySelector('h1').textContent = cfg.name + "'s Feeling";
+        subtitleEl.textContent = 'How do I feel right now?';
+      }
+    })
+    .catch(() => {});
+}
+
+let animFrames = [];  // ArrayBuffer[]
+let animIndex  = 0;
+let animTimer  = null;
+
+function stopAnim() {
+  if (animTimer) { clearInterval(animTimer); animTimer = null; }
+  animFrames = [];
+  animIndex = 0;
+}
+
+function startAnim(emotion) {
+  stopAnim();
+  const totalFrames = 5;
+  let loaded = 0;
+  animFrames = new Array(totalFrames);
+  for (let i = 0; i < totalFrames; i++) {
+    fetch('/emotion_image?device=' + encodeURIComponent(device)
+        + '&emotion=' + encodeURIComponent(emotion)
+        + '&frame=' + i)
+      .then(r => { if (!r.ok) throw new Error(); return r.arrayBuffer(); })
+      .then(buf => {
+        animFrames[i] = buf;
+        if (i === 0) renderBin(buf);  // show frame 0 immediately
+        loaded++;
+        if (loaded === totalFrames) {
+          const validFrames = animFrames.filter(f => f);
+          if (validFrames.length > 1) {
+            animTimer = setInterval(() => {
+              animIndex = (animIndex + 1) % validFrames.length;
+              renderBin(validFrames[animIndex]);
+            }, 250);
+          }
+        }
+      })
+      .catch(() => { loaded++; });
+  }
+}
+
+async function refresh() {
+  if (!device) {
+    statusEl.textContent = 'No device specified.';
+    statusEl.className = 'err';
+    return;
+  }
+  try {
+    const res = await fetch('/latest_emotion?device=' + encodeURIComponent(device));
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      statusEl.textContent = err.detail || 'No emotion data yet.';
+      statusEl.className = 'err';
+      return;
+    }
+    const data = await res.json();
+    labelEl.textContent = data.emotion || '--';
+    reasonEl.textContent = data.reason || '';
+    // Show sensor collection datetime
+    const sh = data.sensor_history;
+    const sensorDt = sh && sh.current_datetime;
+    if (sensorDt) {
+      tsEl.textContent = 'Sensor data updated at ' + formatTimestamp(sensorDt.replace(/:/g, '-'))
+                       + (sh.timezone ? ' ' + zoneAbbr(sh.timezone) : '');
+    } else {
+      tsEl.textContent = formatTimestamp(data.timestamp) || '';
+    }
+    // Show current sensor readings (normalized same as history.html)
+    const sensorDataEl = document.getElementById('sensor-data');
+    const sensorMeta = {
+      temperature: {unit:'°C'},
+      humidity:    {unit:'% RH'},
+      sound:       {unit:'dBFS'},
+      water:       {unit:'%', min:3154, max:960},
+      light:       {unit:'lux'},
+      motion:      {unit:'%', min:0, max:10},
+      occupancy:   {unit:'%', min:0, max:3000},
+    };
+    const BINARY_SENSORS = new Set(['motion', 'occupancy']);
+    function fmtSensor(v, meta, name) {
+      if (typeof v !== 'number') return String(v);
+      const unit = (meta && meta.unit) ? '\u00a0' + meta.unit : '';
+      if (meta && meta.min !== undefined && meta.max !== undefined) {
+        const norm = (v - meta.min) / (meta.max - meta.min);
+        if (meta.unit === '%' && BINARY_SENSORS.has(name)) return (norm >= 0.5 ? '100.0' : '0.0') + '\u00a0%';
+        if (meta.unit === '%') return (norm * 100).toFixed(1) + '\u00a0%';
+        if (meta.unit === 'boolean') return Math.round(norm) == 1;
+        return Math.round(norm);
+      }
+      const disp = Number.isInteger(v) ? String(v) : v.toFixed(1);
+      return disp + unit;
+    }
+    const sensors = sh && sh.sensors;
+    if (sensors) {
+      const parts = Object.entries(sensors).map(([name, s]) => {
+        const val = s['current value'];
+        const meta = sensorMeta[name] || {};
+        return name + ': ' + fmtSensor(val, meta, name);
+      });
+      sensorDataEl.textContent = parts.join('  |  ');
+    } else {
+      sensorDataEl.textContent = '';
+    }
+    // Battery level reported by the device with its last upload
+    const batteryEl = document.getElementById('battery');
+    const bat = sh && sh.battery;
+    if (bat && typeof bat.percent === 'number') {
+      let txt = 'Battery: ' + bat.percent + '%';
+      if (bat.usb) txt += ' (charging)';
+      batteryEl.textContent = txt;
+      batteryEl.className = (bat.percent < 20 && !bat.usb) ? 'low' : '';
+    } else {
+      batteryEl.textContent = '';
+      batteryEl.className = '';
+    }
+    // Determine device on/off based on the age of the latest inference log.
+    // Prefer the absolute epoch from the server; the name-based parse assumes the
+    // viewer's zone equals the device's zone, which is no longer guaranteed.
+    let logMs = null;
+    if (typeof data.timestamp_epoch === 'number') {
+      logMs = data.timestamp_epoch * 1000;
+    } else if (data.timestamp) {
+      const parts = data.timestamp.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2})-(\d{2})-(\d{2})/);
+      if (parts) logMs = new Date(parts[1], parts[2] - 1, parts[3], parts[4], parts[5], parts[6]).getTime();
+    }
+    if (logMs !== null) {
+      const ageMs = Date.now() - logMs;
+      const isOn = ageMs < 1.5 * 60 * 60 * 1000; // 1.5 hours
+      deviceStatusEl.textContent = isOn ? 'Device: ON' : 'Device: OFF';
+      deviceStatusEl.className = isOn ? 'on' : 'off';
+    }
+    statusEl.textContent = '';
+    startAnim(data.emotion);
+  } catch (e) {
+    statusEl.textContent = 'Failed to load emotion.';
+    statusEl.className = 'err';
+  }
+}
+
+refresh();
+</script>
+</body>
+</html>

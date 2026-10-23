@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR444NHQV7"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-QR444NHQV7');
+  </script>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OATs: Inference Logs</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <style>
+    body { max-width: 680px; }
+
+    .sensor-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .sensor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+    .sensor-name {
+      font-size: 1rem;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+    .sensor-current {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #2563eb;
+    }
+    .chart-wrap { position: relative; }
+    .chart-wrap svg { width: 100%; height: auto; display: block; }
+    .no-history { font-size: .85rem; color: #9ca3af; margin-top: 4px; }
+
+    .tooltip {
+      display: none;
+      position: absolute;
+      background: #1f2937;
+      color: #fff;
+      font-size: .8rem;
+      padding: 8px 12px;
+      border-radius: 8px;
+      pointer-events: none;
+      white-space: pre-line;
+      max-width: 300px;
+      z-index: 10;
+      line-height: 1.4;
+    }
+    .tooltip.wide {
+      max-width: 500px;
+      width: max-content;
+      white-space: normal;
+    }
+    .tooltip .emotion-label {
+      font-weight: 700;
+      text-transform: capitalize;
+      margin-bottom: 2px;
+    }
+    .tooltip .time-label {
+      font-size: .7rem;
+      color: #9ca3af;
+    }
+
+    /* Range slider */
+    .range-control {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .range-label {
+      font-size: .85rem;
+      color: #555;
+      margin-bottom: 8px;
+    }
+    .range-dates {
+      display: flex;
+      justify-content: space-between;
+      font-size: .8rem;
+      color: #2563eb;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .range-slider {
+      position: relative;
+      height: 28px;
+      margin: 8px 0 4px;
+    }
+    .range-slider input[type=range] {
+      position: absolute;
+      width: 100%;
+      top: 0;
+      height: 28px;
+      margin: 0;
+      padding: 0;
+      background: none;
+      pointer-events: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .range-slider input[type=range]::-webkit-slider-runnable-track {
+      height: 4px;
+      background: transparent;
+      border-radius: 2px;
+    }
+    .range-slider input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #2563eb;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      cursor: pointer;
+      pointer-events: auto;
+      margin-top: -7px;
+    }
+    .range-slider input[type=range]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #2563eb;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .range-slider input[type=range]::-moz-range-track {
+      height: 4px;
+      background: transparent;
+    }
+    .range-track-bg {
+      position: absolute;
+      top: 12px;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: #e5e7eb;
+      border-radius: 2px;
+    }
+    .range-track-fill {
+      position: absolute;
+      top: 12px;
+      height: 4px;
+      background: #2563eb;
+      border-radius: 2px;
+    }
+    .range-info {
+      font-size: .75rem;
+      color: #9ca3af;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Inference Logs</h1>
+  <p class="sub" id="subtitle">Loading&hellip;</p>
+  <div class="row">
+    <a id="btn-history" class="btn btn-primary" style="text-decoration:none;display:inline-block">See History</a>
+  </div>
+
+  <div class="range-control" id="range-control" style="display:none">
+    <div class="range-label">Time range</div>
+    <div class="range-dates">
+      <span id="range-start"></span>
+      <span id="range-end"></span>
+    </div>
+    <div class="range-slider">
+      <div class="range-track-bg"></div>
+      <div class="range-track-fill" id="range-fill"></div>
+      <input type="range" id="slider-lo" min="0" max="1" value="0" step="1"/>
+      <input type="range" id="slider-hi" min="0" max="1" value="1" step="1"/>
+    </div>
+    <div class="range-info" id="range-info"></div>
+  </div>
+
+  <div id="charts"></div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const device = params.get('device') || '';
+    if (!device) document.getElementById('subtitle').textContent = 'No device specified.';
+
+    const CW = 600, CH = 130;
+    const PAD = { top: 10, right: 12, bottom: 36, left: 44 };
+    const IW  = CW - PAD.left - PAD.right;
+    const IH  = CH - PAD.top  - PAD.bottom;
+
+    // Normalize a raw value to 0–1 using metadata min/max.
+    function normalize(v, meta) {
+      if (meta && meta.min !== undefined && meta.max !== undefined)
+        return (v - meta.min) / (meta.max - meta.min);
+      return v;
+    }
+
+    function fmt(v, meta) {
+      if (typeof v !== 'number') return String(v);
+      const unit = (meta && meta.unit) ? '\u00a0' + meta.unit : '';
+      if (meta && meta.min !== undefined && meta.max !== undefined) {
+        const norm = normalize(v, meta);
+        if (meta.unit === '%') {
+          return (norm * 100).toFixed(1) + '\u00a0%';
+        } else if (meta.unit === 'boolean') {
+          return Math.round(norm) == 1;
+        } else {
+          return Math.round(norm);
+        }
+      }
+      const disp = Number.isInteger(v) ? String(v) : v.toFixed(1);
+      return disp + unit;
+    }
+
+    const BINARY_SENSORS = new Set(['motion', 'occupancy']);
+    function fmtCurrent(v, meta, name) {
+      if (meta && meta.unit === '%' && meta.min !== undefined && meta.max !== undefined && BINARY_SENSORS.has(name)) {
+        const norm = normalize(v, meta);
+        return (norm >= 0.5 ? '100.0' : '0.0') + '\u00a0%';
+      }
+      return fmt(v, meta);
+    }
+
+    function fmtTimestamp(ts) {
+      // "2026-03-03 04-50-25" → "03-03 04:50"
+      const [date, time] = ts.split(' ');
+      const shortDate = date.slice(5); // "03-03"
+      const shortTime = time ? time.replace(/-/g, ':').slice(0, 5) : '';
+      return shortDate + ' ' + shortTime;
+    }
+
+    // Parse "2026-03-03 17-47-01" → Date object
+    function parseTimestamp(ts) {
+      const [date, time] = ts.split(' ');
+      const iso = date + 'T' + (time || '00-00-00').replace(/-/g, ':');
+      return new Date(iso);
+    }
+
+    function makeChart(entries, sensorName, meta, behaviorChanges) {
+      const raw = entries.map(e => e.sensors[sensorName]);
+      const isPercentage = meta.unit === '%';
+
+      // Match the conversion used in determine_emotion (oat_gemini.py)
+      const series = isPercentage
+        ? raw.map(v => Math.round(normalize(v, meta) * 1000) / 10) // round to 1 decimal
+        : raw.map(v => Math.round(normalize(v, meta)));
+      const n = series.length;
+      if (n === 0) return '';
+
+      let lo = Math.min(...series);
+      let hi = Math.max(...series);
+      const span = hi - lo || 1;
+      lo -= span * 0.10;
+      hi += span * 0.10;
+
+      // Parse timestamps to position points by actual time
+      const times = entries.map(e => parseTimestamp(e.timestamp).getTime());
+      let tMin = times[0];
+      let tMax = times[n - 1];
+      // Extend time range to include behavior changes so their lines are visible
+      (behaviorChanges || []).forEach(bc => {
+        const t = parseTimestamp(bc.timestamp).getTime();
+        if (t < tMin) tMin = t;
+        if (t > tMax) tMax = t;
+      });
+      const tSpan = tMax - tMin || 1;
+
+      function px(i) { return PAD.left + (n > 1 ? ((times[i] - tMin) / tSpan) * IW : IW / 2); }
+      function py(v) { return PAD.top  + (1 - (v - lo) / (hi - lo)) * IH; }
+
+      const pts = series.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ');
+
+      const areaD = `M${px(0)},${py(series[0])} ` +
+        series.slice(1).map((v, i) => `L${px(i+1)},${py(v)}`).join(' ') +
+        ` L${px(n-1)},${(PAD.top+IH).toFixed(1)} L${px(0)},${(PAD.top+IH).toFixed(1)} Z`;
+
+      const guides = [0.15, 0.5, 0.85].map(t => {
+        const normV = lo + t * (hi - lo);
+        const y = py(normV).toFixed(1);
+        const lbl = normV.toFixed(0);
+        return `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + IW}" y2="${y}"
+                      stroke="#e5e7eb" stroke-width="1"/>
+                <text x="${PAD.left - 5}" y="${(parseFloat(y) + 4).toFixed(1)}"
+                      text-anchor="end" font-size="10" fill="#9ca3af">${lbl}</text>`;
+      }).join('');
+
+      // Generate time axis ticks at regular intervals
+      const tickCount = Math.min(5, n);
+      const timeTicks = [];
+      for (let t = 0; t < tickCount; t++) {
+        const frac = tickCount > 1 ? t / (tickCount - 1) : 0.5;
+        const tickTime = tMin + frac * tSpan;
+        const tickX = PAD.left + frac * IW;
+        const d = new Date(tickTime);
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mi = String(d.getMinutes()).padStart(2, '0');
+        const anchor = t === 0 ? 'start' : t === tickCount - 1 ? 'end' : 'middle';
+        timeTicks.push(
+          `<text x="${tickX.toFixed(1)}" y="${PAD.top + IH + 14}"
+                 text-anchor="${anchor}" font-size="9" fill="#9ca3af">${mm}-${dd}</text>
+           <text x="${tickX.toFixed(1)}" y="${PAD.top + IH + 24}"
+                 text-anchor="${anchor}" font-size="9" fill="#9ca3af">${hh}:${mi}</text>`
+        );
+      }
+
+      const dots = series.map((v, i) => {
+        const cx = px(i).toFixed(1);
+        const cy = py(v).toFixed(1);
+        return `<circle cx="${cx}" cy="${cy}" r="3" fill="#2563eb" opacity="0.6" class="dot" data-idx="${i}"/>
+                <circle cx="${cx}" cy="${cy}" r="12" fill="transparent" class="hit" data-idx="${i}"/>`;
+      }).join('');
+
+      const gradId = 'g_' + sensorName.replace(/\W/g, '_');
+
+      // Behavior change vertical bars
+      const bLines = (behaviorChanges || []).map((bc, bi) => {
+        const t = parseTimestamp(bc.timestamp).getTime();
+        if (t < tMin || t > tMax) return '';
+        const bx = PAD.left + ((t - tMin) / tSpan) * IW;
+        return `<line x1="${bx.toFixed(1)}" y1="${PAD.top}" x2="${bx.toFixed(1)}" y2="${PAD.top + IH}"
+                      stroke="#f59e0b" stroke-width="2" stroke-dasharray="4,3" opacity="0.8"/>
+                <rect x="${(bx - 8).toFixed(1)}" y="${PAD.top}" width="16" height="${IH}"
+                      fill="transparent" class="bhit" data-bidx="${bi}"/>`;
+      }).join('');
+
+      return `<svg viewBox="0 0 ${CW} ${CH}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#2563eb" stop-opacity="0.18"/>
+            <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        ${guides}
+        <path d="${areaD}" fill="url(#${gradId})"/>
+        <polyline points="${pts}" fill="none" stroke="#2563eb" stroke-width="1.8"
+                  stroke-linejoin="round" stroke-linecap="round"/>
+        ${dots}
+        ${bLines}
+        <line x1="${PAD.left}" y1="${PAD.top + IH}" x2="${PAD.left + IW}" y2="${PAD.top + IH}"
+              stroke="#d1d5db" stroke-width="1"/>
+        ${timeTicks.join('')}
+      </svg>`;
+    }
+
+    function setupTooltip(card, entries, sensorName, meta, behaviorChanges) {
+      const tooltip = card.querySelector('.tooltip');
+      const svg = card.querySelector('svg');
+      if (!svg || !tooltip) return;
+
+      function positionTooltip(el, attrX) {
+        const svgRect = svg.getBoundingClientRect();
+        const svgWidth = parseFloat(svg.getAttribute('viewBox').split(' ')[2]);
+        const cx = parseFloat(el.getAttribute(attrX));
+        const pxX = (cx / svgWidth) * svgRect.width;
+        let left = pxX;
+        if (left + 200 > svgRect.width) left = pxX - 200;
+        if (left < 0) left = 0;
+        tooltip.style.left = left + 'px';
+        const cy = el.getAttribute('cy');
+        if (cy) {
+          const svgHeight = parseFloat(svg.getAttribute('viewBox').split(' ')[3]);
+          tooltip.style.bottom = (svgRect.height - parseFloat(cy) / svgHeight * svgRect.height + 12) + 'px';
+        } else {
+          tooltip.style.bottom = (svgRect.height / 2) + 'px';
+        }
+      }
+
+      svg.addEventListener('mouseover', (e) => {
+        // Behavior change bar hover
+        const bhit = e.target.closest('.bhit');
+        if (bhit) {
+          const bi = parseInt(bhit.dataset.bidx);
+          const bc = (behaviorChanges || [])[bi];
+          if (!bc) return;
+          tooltip.innerHTML =
+            `<div class="time-label">${fmtTimestamp(bc.timestamp)}</div>` +
+            `<div class="emotion-label" style="color:#f59e0b">Behavior Updated</div>` +
+            `<div style="margin-top:4px;font-size:.75rem"><b>Positive:</b> ${bc.positive || '(none)'}</div>` +
+            `<div style="font-size:.75rem"><b>Negative:</b> ${bc.negative || '(none)'}</div>`;
+          tooltip.className = 'tooltip wide';
+          tooltip.style.display = 'block';
+          positionTooltip(bhit, 'x');
+          return;
+        }
+
+        // Sensor data point hover
+        const hit = e.target.closest('.hit, .dot');
+        if (!hit) return;
+        const idx = parseInt(hit.dataset.idx);
+        const entry = entries[idx];
+        if (!entry) return;
+
+        const rawVal = entry.sensors[sensorName];
+        const fmtVal = fmt(rawVal, meta);
+        tooltip.innerHTML =
+          `<div class="time-label">${fmtTimestamp(entry.timestamp)}</div>` +
+          `<div class="emotion-label">${entry.emotion}</div>` +
+          `<div>${entry.reason}</div>` +
+          `<div style="margin-top:4px;font-size:.75rem;color:#9ca3af">${sensorName}: ${fmtVal}</div>`;
+        tooltip.className = 'tooltip';
+        tooltip.style.display = 'block';
+        positionTooltip(hit, 'cx');
+      });
+
+      svg.addEventListener('mouseout', (e) => {
+        const hit = e.target.closest('.hit, .dot, .bhit');
+        if (hit) tooltip.style.display = 'none';
+      });
+    }
+
+    // --- State ---
+    let allEntries = [];
+    let allMetadata = {};
+    let allBehaviorChanges = [];
+    let allTimelineItems = []; // merged & sorted: {type:'entry'|'behavior', timestamp, index}
+
+    function renderCharts(entries, behaviors) {
+      const sensorNames = new Set();
+      entries.forEach(e => {
+        Object.keys(e.sensors).forEach(k => sensorNames.add(k));
+      });
+
+      const container = document.getElementById('charts');
+      container.innerHTML = '';
+
+      for (const name of sensorNames) {
+        const sensorEntries = entries.filter(e => e.sensors[name] !== undefined);
+        if (sensorEntries.length === 0) continue;
+
+        const meta = allMetadata[name] || {};
+        const latestRaw = sensorEntries[sensorEntries.length - 1].sensors[name];
+
+        const card = document.createElement('div');
+        card.className = 'sensor-card';
+
+        const chartHtml = sensorEntries.length < 2
+          ? `<p class="no-history">Not enough data points yet.</p>`
+          : `<div class="chart-wrap">${makeChart(sensorEntries, name, meta, behaviors)}<div class="tooltip"></div></div>`;
+
+        card.innerHTML = `
+          <div class="sensor-header">
+            <span class="sensor-name">${name}</span>
+            <span class="sensor-current">${fmtCurrent(latestRaw, meta, name)}</span>
+          </div>
+          ${chartHtml}`;
+        container.appendChild(card);
+
+        if (sensorEntries.length >= 2) {
+          setupTooltip(card, sensorEntries, name, meta, behaviors);
+        }
+      }
+    }
+
+    function updateRange() {
+      const sliderLo = document.getElementById('slider-lo');
+      const sliderHi = document.getElementById('slider-hi');
+      let lo = parseInt(sliderLo.value);
+      let hi = parseInt(sliderHi.value);
+
+      // Prevent crossing
+      if (lo > hi) {
+        lo = hi;
+        sliderLo.value = lo;
+      }
+
+      const startLabel = document.getElementById('range-start');
+      const endLabel   = document.getElementById('range-end');
+      const info       = document.getElementById('range-info');
+      const fill       = document.getElementById('range-fill');
+
+      startLabel.textContent = fmtTimestamp(allTimelineItems[lo].timestamp);
+      endLabel.textContent   = fmtTimestamp(allTimelineItems[hi].timestamp);
+
+      // Extract entries and behaviors from the selected timeline slice
+      const slice = allTimelineItems.slice(lo, hi + 1);
+      const filteredEntries = slice.filter(it => it.type === 'entry').map(it => allEntries[it.index]);
+      const filteredBehaviors = slice.filter(it => it.type === 'behavior').map(it => allBehaviorChanges[it.index]);
+
+      const entryCount = filteredEntries.length;
+      info.textContent = entryCount + ' of ' + allEntries.length + ' entries';
+
+      // Update fill bar position
+      const max = allTimelineItems.length - 1;
+      const loP = (lo / max) * 100;
+      const hiP = (hi / max) * 100;
+      fill.style.left  = loP + '%';
+      fill.style.width  = (hiP - loP) + '%';
+
+      const label = deviceName ? deviceName + ' (' + device + ')' : 'Device\u00a0' + device;
+      document.getElementById('subtitle').textContent =
+        label + '\u00a0\u00b7\u00a0' + entryCount + ' of ' + allEntries.length + ' log entries';
+
+      renderCharts(filteredEntries, filteredBehaviors);
+    }
+
+    async function render() {
+      if (!device) return;
+      try {
+        const res = await fetch('/inference_log_data?device=' + encodeURIComponent(device));
+        if (!res.ok) throw new Error('HTTP\u00a0' + res.status);
+        const data = await res.json();
+        allEntries  = data.entries;
+        allMetadata = data.metadata || {};
+        allBehaviorChanges = data.behavior_changes || [];
+
+        if (allEntries.length === 0) {
+          document.getElementById('subtitle').textContent = 'No log entries found.';
+          return;
+        }
+
+        // Build merged timeline of entries + behavior changes, sorted by timestamp
+        allTimelineItems = [];
+        allEntries.forEach((e, i) => allTimelineItems.push({type: 'entry', timestamp: e.timestamp, index: i}));
+        allBehaviorChanges.forEach((b, i) => allTimelineItems.push({type: 'behavior', timestamp: b.timestamp, index: i}));
+        allTimelineItems.sort((a, b) => parseTimestamp(a.timestamp).getTime() - parseTimestamp(b.timestamp).getTime());
+
+        // Setup slider
+        const max = allTimelineItems.length - 1;
+        const sliderLo = document.getElementById('slider-lo');
+        const sliderHi = document.getElementById('slider-hi');
+        sliderLo.max = max;
+        sliderHi.max = max;
+        sliderLo.value = 0;
+        sliderHi.value = max;
+
+        sliderLo.addEventListener('input', updateRange);
+        sliderHi.addEventListener('input', updateRange);
+
+        document.getElementById('range-control').style.display = '';
+        updateRange();
+
+      } catch (e) {
+        document.getElementById('subtitle').textContent = 'Error: ' + e.message;
+        document.getElementById('subtitle').className = 'sub err';
+      }
+    }
+
+    document.getElementById('btn-history').href = '/history?device=' + encodeURIComponent(device);
+
+    // Fetch device name then render
+    let deviceName = '';
+    (async () => {
+      if (device) {
+        try {
+          const cfg = await (await fetch('/device_config?device=' + encodeURIComponent(device))).json();
+          deviceName = cfg.name || '';
+        } catch (_) {}
+      }
+      render();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR444NHQV7"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-QR444NHQV7');
+  </script>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OATs: Sensor History</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <style>
+    body { max-width: 680px; }
+
+    .sensor-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .sensor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+    .sensor-name {
+      font-size: 1rem;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+    .sensor-current {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #2563eb;
+    }
+    .chart-wrap svg { width: 100%; height: auto; display: block; }
+    .no-history { font-size: .85rem; color: #9ca3af; margin-top: 4px; }
+    .refresh-info { font-size: .8rem; color: #9ca3af; text-align: right; margin-top: 8px; }
+    .btn-clear { background: #fee2e2; color: #991b1b; }
+    .btn-clear:hover:not(:disabled) { background: #fecaca; }
+  </style>
+</head>
+<body>
+  <h1>Sensor History</h1>
+  <p class="sub" id="subtitle">Loading&hellip;</p>
+  <div class="row">
+    <a id="btn-logs" class="btn btn-primary" style="text-decoration:none;display:inline-block">See Logs</a>
+  </div>
+  <div id="charts"></div>
+  <div class="row">
+    <button id="btn-clear" class="btn-clear">Clear Sensor History</button>
+  </div>
+  <p id="clear-status"></p>
+  <p class="refresh-info" id="refresh-info"></p>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const device = params.get('device') || '';
+    if (!device) document.getElementById('subtitle').textContent = 'No device specified.';
+
+    // Chart geometry
+    const CW = 600, CH = 110;
+    const PAD = { top: 10, right: 12, bottom: 28, left: 44 };
+    const IW  = CW - PAD.left - PAD.right;
+    const IH  = CH - PAD.top  - PAD.bottom;
+
+    // Normalize a raw value to 0–100 using metadata min/max.
+    // If min > max (inverted sensor, e.g. water where high mV = dry), the result is still correct.
+    function normalize(v, meta) {
+      if (meta && meta.min !== undefined && meta.max !== undefined)
+        return (v - meta.min) / (meta.max - meta.min);
+      return v;
+    }
+
+    function fmt(v, meta) {
+      if (typeof v !== 'number') return String(v);
+      const unit = (meta && meta.unit) ? '\u00a0' + meta.unit : '';
+      if (meta && meta.min !== undefined && meta.max !== undefined) {
+        const norm = normalize(v, meta);
+        if (meta.unit === "%"){
+          pct = norm*100;
+          return pct.toFixed(1) + '\u00a0%';
+        } else if (meta.unit === "boolean"){
+          return Math.round(norm)==1;
+        }
+        else{
+          return Math.round(norm);
+        }
+      }
+      const disp = Number.isInteger(v) ? String(v) : v.toFixed(1);
+      return disp + unit;
+    }
+
+    const BINARY_SENSORS = new Set(['motion', 'occupancy']);
+    function fmtCurrent(v, meta, name) {
+      if (meta && meta.unit === '%' && meta.min !== undefined && meta.max !== undefined && BINARY_SENSORS.has(name)) {
+        const norm = normalize(v, meta);
+        return (norm >= 0.5 ? '100.0' : '0.0') + '\u00a0%';
+      }
+      return fmt(v, meta);
+    }
+
+    function r2(v) { return Math.round(v * 100) / 100; }
+
+    function makeChart(history, current, name, meta) {
+      const isPercentage = meta.unit === "%";
+
+      // Transform series: normalize when min/max available, otherwise pass through
+      const raw    = [...history, current];
+      // Match the conversion used in determine_emotion (oat_gemini.py)
+      const series = isPercentage
+        ? raw.map((v, i) => {
+            let norm = Math.round(normalize(v, meta) * 1000) / 10; // round to 1 decimal
+            // Snap binary sensors' current value (last element) to 0 or 100
+            if (BINARY_SENSORS.has(name) && i === raw.length - 1)
+              norm = norm >= 50 ? 100.0 : 0.0;
+            return Math.max(0, Math.min(100, norm));
+          })
+        : raw.map(v => Math.round(normalize(v, meta)));
+      const n      = series.length;
+
+      // Y-axis bounds: fixed 0–100 when normalized, auto-scaled otherwise
+      let lo, hi;
+      // if (isPercentage) {
+      //   lo = 0; hi = 100;
+      // } else {
+        lo = Math.min(...series);
+        hi = Math.max(...series);
+        const span = hi - lo || 1;
+        lo -= span * 0.10;
+        hi += span * 0.10;
+      // }
+
+      function px(i) { return PAD.left + (n > 1 ? (i / (n - 1)) * IW : IW / 2); }
+      function py(v) { return PAD.top  + (1 - (v - lo) / (hi - lo)) * IH; }
+
+      const pts = series.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ');
+
+      const areaD = `M${px(0)},${py(series[0])} ` +
+        series.slice(1).map((v, i) => `L${px(i+1)},${py(v)}`).join(' ') +
+        ` L${px(n-1)},${(PAD.top+IH).toFixed(1)} L${px(0)},${(PAD.top+IH).toFixed(1)} Z`;
+
+      // 3 horizontal guide lines
+      const guides = [0.15, 0.5, 0.85].map(t => {
+        const normV = lo + t * (hi - lo);
+        const y     = py(normV).toFixed(1);
+        const lbl   = normV.toFixed(0);
+        return `<line x1="${PAD.left}" y1="${y}" x2="${PAD.left + IW}" y2="${y}"
+                      stroke="#e5e7eb" stroke-width="1"/>
+                <text x="${PAD.left - 5}" y="${(parseFloat(y) + 4).toFixed(1)}"
+                      text-anchor="end" font-size="10" fill="#9ca3af">${lbl}</text>`;
+      }).join('');
+
+      // X axis labels
+      const hoursOld   = history.length;
+      const xLabelLeft = hoursOld >= 48
+        ? `${Math.round(hoursOld / 24)}d ago`
+        : `${hoursOld}h ago`;
+
+      // Dot on current (normalized) value
+      const dotX = px(n - 1).toFixed(1);
+      const dotY = py(series[n - 1]).toFixed(1);
+
+      const gradId = 'g' + name.replace(/\W/g, '_');
+
+      return `<svg viewBox="0 0 ${CW} ${CH}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#2563eb" stop-opacity="0.18"/>
+            <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        ${guides}
+        <path d="${areaD}" fill="url(#${gradId})"/>
+        <polyline points="${pts}" fill="none" stroke="#2563eb" stroke-width="1.8"
+                  stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="${dotX}" cy="${dotY}" r="3.5" fill="#2563eb"/>
+        <line x1="${PAD.left}" y1="${PAD.top + IH}" x2="${PAD.left + IW}" y2="${PAD.top + IH}"
+              stroke="#d1d5db" stroke-width="1"/>
+        <text x="${PAD.left}" y="${PAD.top + IH + 18}"
+              text-anchor="start" font-size="10" fill="#9ca3af">${xLabelLeft}</text>
+        <text x="${PAD.left + IW}" y="${PAD.top + IH + 18}"
+              text-anchor="end" font-size="10" fill="#9ca3af">now</text>
+      </svg>`;
+    }
+
+    async function render() {
+      if (!device) return;
+      try {
+        const res = await fetch('/sensor_history_data?device=' + encodeURIComponent(device));
+        if (!res.ok) throw new Error('HTTP\u00a0' + res.status);
+        const data = await res.json();
+
+        const label = deviceName ? deviceName + ' (' + data.device + ')' : 'Device\u00a0' + data.device;
+        document.getElementById('subtitle').textContent = label;
+
+        const container = document.getElementById('charts');
+        container.innerHTML = '';
+
+        for (const [name, info] of Object.entries(data.sensors || {})) {
+          const current = info['current value'];
+          const history = info['history'] || [];
+          const meta    = {
+            unit: info['unit'],
+            min:  info['min'],
+            max:  info['max'],
+          };
+
+          const card = document.createElement('div');
+          card.className = 'sensor-card';
+
+          let chartHtml;
+          if (history.length === 0) {
+            chartHtml = `<p class="no-history">No history yet.</p>`;
+          } else {
+            chartHtml = `<div class="chart-wrap">${makeChart(history, current, name, meta)}</div>`;
+          }
+
+          card.innerHTML = `
+            <div class="sensor-header">
+              <span class="sensor-name">${name}</span>
+              <span class="sensor-current">${fmtCurrent(current, meta, name)}</span>
+            </div>
+            ${chartHtml}`;
+          container.appendChild(card);
+        }
+
+        const t = new Date().toLocaleTimeString();
+        document.getElementById('refresh-info').textContent =
+          'Updated\u00a0' + t + '\u00a0\u00b7\u00a0auto-refreshes every\u00a030\u00a0s';
+
+      } catch (e) {
+        document.getElementById('subtitle').textContent = 'Error: ' + e.message;
+        document.getElementById('subtitle').className = 'sub err';
+      }
+    }
+
+    document.getElementById('btn-clear').addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to clear the sensor history?\nThe device will erase its local history on next boot.')) return;
+      const btn = document.getElementById('btn-clear');
+      const statusEl = document.getElementById('clear-status');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/clear_history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device }),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.detail || 'Failed');
+        statusEl.textContent = 'Queued — history will be cleared on next device boot.';
+        statusEl.className = 'ok';
+      } catch (e) {
+        statusEl.textContent = 'Error: ' + e.message;
+        statusEl.className = 'err';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('btn-logs').href = '/logs?device=' + encodeURIComponent(device);
+
+    // Fetch device name then render
+    let deviceName = '';
+    (async () => {
+      if (device) {
+        try {
+          const cfg = await (await fetch('/device_config?device=' + encodeURIComponent(device))).json();
+          deviceName = cfg.name || '';
+        } catch (_) {}
+      }
+      render();
+      setInterval(render, 30000);
+    })();
+  </script>
+</body>
+</html>

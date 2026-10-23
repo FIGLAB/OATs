@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR444NHQV7"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-QR444NHQV7');
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All OAT Devices</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
+    h1 { margin-bottom: 24px; }
+    a { display: flex; align-items: center; gap: 12px; padding: 12px 16px; margin: 8px 0; background: #f0f0f0; border-radius: 6px; text-decoration: none; color: #333; font-size: 18px; font-family: monospace; }
+    a:hover { background: #e0e0e0; }
+    .indicator { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .on { background: #22c55e; }
+    .off { background: #ef4444; }
+    .empty { color: #888; }
+  </style>
+</head>
+<body>
+  <h1>All OAT Devices</h1>
+  <div id="devices"><p class="empty">Loading...</p></div>
+  <script>
+    fetch("/all-oat-devices-list")
+      .then(r => r.json())
+      .then(devices => {
+        const el = document.getElementById("devices");
+        if (!devices.length) { el.innerHTML = '<p class="empty">No devices registered.</p>'; return; }
+        el.innerHTML = "";
+        const now = Date.now();
+        const THRESHOLD_MS = 90 * 60 * 1000; // 1 hour 30 min
+        devices.forEach(dev => {
+          const a = document.createElement("a");
+          a.href = "/logs?device=" + encodeURIComponent(dev.id);
+          const dot = document.createElement("span");
+          dot.className = "indicator";
+          let isOn = false;
+          if (dev.current_datetime) {
+            const last = new Date(dev.current_datetime.replace(" ", "T"));
+            isOn = (now - last.getTime()) < THRESHOLD_MS;
+          }
+          dot.classList.add(isOn ? "on" : "off");
+          a.appendChild(dot);
+          const label = dev.name ? dev.name + ' (' + dev.id + ')' : dev.id;
+          a.appendChild(document.createTextNode(label));
+          el.appendChild(a);
+        });
+      });
+  </script>
+</body>
+</html>

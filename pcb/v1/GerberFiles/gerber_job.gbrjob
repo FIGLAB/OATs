@@ -1,0 +1,24 @@
+{
+    "Header": {
+        "Comment": "All values are metric (mm)",
+        "CreationDate": "2026-02-27T01:52:33Z",
+        "GenerationSoftware": {
+            "Application": "Fusion Electronics",
+            "Vendor": "Autodesk",
+            "Version": "9.7.0"
+        },
+        "Part": "Single"
+    },
+    "Overall": {
+        "BoardThickness": 1.6608,
+        "LayerNumber": 2,
+        "Name": {
+            "ProjectId": "interface v11"
+        },
+        "Owner": "Daehwa Kim <daehwak@andrew.cmu.edu>",
+        "Size": {
+            "X": 35.7,
+            "Y": 49
+        }
+    }
+}

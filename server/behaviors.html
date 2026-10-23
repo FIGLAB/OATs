@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR444NHQV7"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-QR444NHQV7');
+  </script>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OATs: Customize Behaviors</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <h1>Customize Behaviors</h1>
+  <p class="sub" id="intro">Given that I am "_____", positive and negative things in your life have been automatically generated. Feel free to edit them and add extra details.</p>
+
+  <label>What are positive things in my life?</label>
+  <textarea id="positive" rows="4" style="min-height: 200px;"></textarea>
+
+  <label>What are negative things in my life?</label>
+  <textarea id="negative" rows="4" style="min-height: 200px;"></textarea>
+
+  <div class="row">
+    <button id="btn-back">Back</button>
+    <button id="btn-regen" class="btn-primary">Regenerate</button>
+    <button id="btn-save" class="btn-primary">Save & Continue</button>
+  </div>
+  <div id="status"></div>
+
+  <script>
+    const params   = new URLSearchParams(window.location.search);
+    const device   = params.get('device') || '';
+    const statusEl = document.getElementById('status');
+    const btnBack  = document.getElementById('btn-back');
+    const btnSave  = document.getElementById('btn-save');
+    const introEl  = document.getElementById('intro');
+
+    (async () => {
+      try {
+        // Load all three sources in parallel
+        const [configRes, defaultsRes, savedRes] = await Promise.all([
+          fetch('/config?device='             + encodeURIComponent(device)),
+          fetch('/defaults?device=' + encodeURIComponent(device)),
+          fetch('/behaviors_config?device='   + encodeURIComponent(device))
+        ]);
+
+        // Fill the "Given that I am _____" label from the device config
+        if (configRes.ok) {
+          const c = await configRes.json();
+          if (c.desp) {
+            introEl.textContent = 'Given that I am \"' + c.desp + '\", positive and negative things in your life have been automatically generated. Feel free to edit them and add extra details.';
+          }
+        }
+
+        // Check if this device already has saved behaviors — use those first
+        let useSaved = false;
+        if (savedRes.ok) {
+          const s = await savedRes.json();
+          if (s.positive || s.negative) {
+            document.getElementById('positive').value = s.positive || '';
+            document.getElementById('negative').value = s.negative || '';
+            useSaved = true;
+          }
+        }
+
+        // Fall back to defaults from file
+        if (!useSaved && defaultsRes.ok) {
+          const d = await defaultsRes.json();
+          document.getElementById('positive').value = d.positive || '';
+          document.getElementById('negative').value = d.negative || '';
+        }
+      } catch(e) {}
+    })();
+
+    const btnRegen = document.getElementById('btn-regen');
+
+    btnRegen.addEventListener('click', async () => {
+      btnRegen.disabled = true;
+      statusEl.textContent = 'Regenerating\u2026';
+      statusEl.className = 'info';
+      try {
+        const res = await fetch('/regenerate_defaults', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({device})
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Regeneration failed');
+        document.getElementById('positive').value = data.positive || '';
+        document.getElementById('negative').value = data.negative || '';
+        statusEl.textContent = '';
+        statusEl.className = '';
+      } catch(e) {
+        statusEl.textContent = 'Failed: ' + e.message;
+        statusEl.className = 'err';
+      }
+      btnRegen.disabled = false;
+    });
+
+    btnBack.addEventListener('click', () => {
+      window.location.href = '/sensors?device=' + encodeURIComponent(device);
+    });
+
+    btnSave.addEventListener('click', async () => {
+      btnSave.disabled = true;
+      btnBack.disabled = true;
+      btnRegen.disabled = true;
+      statusEl.textContent = 'Saving\u2026';
+      statusEl.className = 'info';
+      try {
+        const res = await fetch('/save_behaviors', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            device:   device,
+            positive: document.getElementById('positive').value,
+            negative: document.getElementById('negative').value,
+          })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Save failed');
+
+        // Redirect to progress page — emotion generation runs in the background
+        window.location.href = '/generating?device=' + encodeURIComponent(device);
+      } catch(e) {
+        statusEl.textContent = 'Failed: ' + e.message;
+        statusEl.className = 'err';
+        btnSave.disabled = false;
+        btnBack.disabled = false;
+        btnRegen.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

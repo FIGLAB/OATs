@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR444NHQV7"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-QR444NHQV7');
+  </script>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OATs</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <style>
+    body { text-align: center; }
+    h1 { margin-bottom: 16px; }
+    p.bookmark { font-size: 1rem; color: #F55; margin-bottom: 32px; }
+    .buttons { display: flex; flex-direction: column; gap: 12px; }
+    .buttons button { flex: none; width: 100%; padding: 14px; font-size: 1.05rem; }
+  </style>
+</head>
+<body>
+  <h1 id="title">Object-Agent Twins (OAT)</h1>
+  <canvas id="avatar" width="200" height="200" style="display:none; margin:0 auto 16px; image-rendering:pixelated; border:1px solid #ccc; width:200px; height:200px;"></canvas>
+  <p class="bookmark">***Bookmark this page***</p>
+  <div class="buttons">
+    <button id="btn-emotion" class="btn-primary" style="display:none;">How is my OAT now</button>
+    <button id="btn-setup" class="btn-primary">Setup OAT</button>
+  </div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const device = params.get('device') || '';
+
+    document.getElementById('btn-setup').addEventListener('click', () => {
+      window.location.href = '/avatar?device=' + encodeURIComponent(device);
+    });
+
+    document.getElementById('btn-emotion').addEventListener('click', () => {
+      window.location.href = '/emotion?device=' + encodeURIComponent(device);
+    });
+
+    function renderBin(buf) {
+      const bytes = new Uint8Array(buf);
+      const w = (bytes[0] << 8) | bytes[1];
+      const h = (bytes[2] << 8) | bytes[3];
+      const canvas = document.getElementById('avatar');
+      canvas.width = w; canvas.height = h;
+      canvas.style.display = 'block';
+      const ctx = canvas.getContext('2d');
+      const img = ctx.createImageData(w, h);
+      const data = img.data;
+      const rowBytes = Math.ceil(w / 8);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const byteIdx = 8 + y * rowBytes + Math.floor(x / 8);
+          const bitIdx = 7 - (x % 8);
+          const on = (bytes[byteIdx] >> bitIdx) & 1;
+          const v = on ? 255 : 0;
+          const px = (y * w + x) * 4;
+          data[px] = v; data[px+1] = v; data[px+2] = v; data[px+3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    (async () => {
+      try {
+        const [histRes, configRes, avatarRes] = await Promise.all([
+          fetch('/has_sensor_history?device=' + encodeURIComponent(device)),
+          fetch('/config?device=' + encodeURIComponent(device)),
+          fetch('/pending_avatar?device=' + encodeURIComponent(device)),
+        ]);
+        const histData = await histRes.json();
+        const configData = await configRes.json();
+        if (configData.name) {
+          document.getElementById('title').textContent = "Hello! I am " + configData.name;
+        }
+        if (avatarRes.ok) {
+          renderBin(await avatarRes.arrayBuffer());
+        }
+        if (histData.exists) {
+          document.getElementById('btn-emotion').style.display = '';
+          document.getElementById('btn-setup').textContent = 'Edit OAT';
+        }
+      } catch (e) {}
+    })();
+  </script>
+</body>
+</html>

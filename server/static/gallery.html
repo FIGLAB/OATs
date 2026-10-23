@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR444NHQV7"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-QR444NHQV7');
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OAT Gallery</title>
+  <link rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌱%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Fraunces:opsz,wght,SOFT@9..144,400..700,100&family=Yellowtail&display=swap">
+  <style>
+    :root {
+      --bg: #FAF8F4;
+      --surface: #FFFFFF;
+      --ink: #1D1B17;
+      --ink-2: #4A463F;
+      --muted: #7A756C;
+      --line: #E7E2D8;
+      --accent: #2F7A4D;
+      --accent-ink: #1F5A37;
+      --accent-soft: #E8F3EC;
+      --radius: 14px;
+      --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+      --font-body: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-body);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    a { color: var(--accent-ink); text-decoration: none; }
+    h1, h2, h3 { font-family: var(--font-display); font-weight: 500; line-height: 1.1; margin: 0; letter-spacing: -0.01em; }
+    p { margin: 0 0 1em; }
+
+    .wrap { width: min(1080px, 100% - 32px); margin: 0 auto; }
+
+    /* top bar */
+    .site-nav {
+      position: sticky; top: 0; z-index: 20;
+      background: rgba(250,248,244,.88);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+    }
+    .site-nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+    .brand { font-family: Yellowtail, cursive; font-size: 30px; color: var(--ink); line-height: 1; }
+    .brand:hover { color: var(--ink); }
+
+    /* header */
+    .hero { text-align: center; padding: 56px 0 36px; }
+    .hero h1 { font-size: clamp(32px, 4.5vw, 46px); }
+    .tagline { font-size: 17px; color: var(--ink-2); max-width: 560px; margin: 10px auto 24px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 20px; border-radius: 999px; font-size: 15px; font-weight: 500; font-family: var(--font-body);
+      border: 1px solid var(--ink); color: var(--ink); background: transparent; cursor: pointer;
+      transition: background .15s, color .15s, transform .15s;
+    }
+    .btn:hover { background: var(--ink); color: #fff; transform: translateY(-1px); }
+    .btn.primary { background: var(--ink); color: #fff; }
+    .btn.primary:hover { background: var(--accent-ink); border-color: var(--accent-ink); }
+    .btn:disabled { background: var(--line); border-color: var(--line); color: var(--muted); cursor: not-allowed; transform: none; }
+    .btn svg { width: 15px; height: 15px; }
+
+    /* gallery grid */
+    main { flex: 1; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 18px;
+      padding-bottom: 24px;
+    }
+    .card {
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      padding: 22px 18px 20px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+      color: var(--ink);
+      transition: transform .15s, box-shadow .15s, border-color .15s;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: #D8D2C6;
+      box-shadow: 0 16px 32px -24px rgba(29,27,23,.45);
+    }
+    .card canvas, .card .placeholder {
+      width: 136px; height: auto;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+    .card canvas { image-rendering: pixelated; max-width: 100%; }
+    .card .placeholder {
+      aspect-ratio: 1 / 1; border-style: dashed;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 12px;
+    }
+    .name { font-family: var(--font-display); font-size: 20px; line-height: 1.2; text-align: center; margin-top: 4px; }
+    .desp {
+      font-size: 13.5px; color: var(--muted); text-align: center; line-height: 1.45;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 40px 0; }
+
+    footer { margin-top: 48px; padding: 24px 0 36px; border-top: 1px solid var(--line); text-align: center; font-size: 13px; color: var(--muted); }
+    footer a { color: var(--ink-2); border-bottom: 1px solid var(--line); }
+    footer a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+    @media (max-width: 640px) {
+      .hero { padding-top: 40px; }
+      .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+      .card { padding: 16px 12px 16px; }
+      .card canvas, .card .placeholder { width: 112px; }
+      .name { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-nav">
+    <div class="wrap">
+      <a class="brand" href="https://daehwakim.com/">🌱Daehwa Kim</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap">
+      <div class="hero">
+        <h1>OAT Gallery</h1>
+        <p class="tagline">Every OAT that has hatched so far. Open one to see how it is feeling, or make your own.</p>
+        <button id="make-btn" class="btn primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          Make My Own OAT
+        </button>
+      </div>
+      <div id="gallery" class="grid"><p class="empty">Loading…</p></div>
+    </div>
+  </main>
+
+  <footer>
+    Part of <a href="https://daehwakim.com/oat/">OATs: Object-Agent Twins</a> · Carnegie Mellon University
+  </footer>
+
+  <script>
+    function drawBitmap(canvas, buf) {
+      const dv = new DataView(buf);
+      const w  = dv.getUint16(0);
+      const h  = dv.getUint16(2);
+      const px = new Uint8Array(buf, 8);
+      const stride = Math.ceil(w / 8);
+      canvas.width  = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      const img = ctx.createImageData(w, h);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const bit = (px[y * stride + (x >> 3)] >> (7 - (x & 7))) & 1;
+          const v   = bit ? 255 : 0;
+          const i   = (y * w + x) * 4;
+          img.data[i] = img.data[i+1] = img.data[i+2] = v;
+          img.data[i+3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    async function animateEmotion(device, canvas, emotion) {
+      const totalFrames = 5;
+      const frames = await Promise.all(
+        Array.from({length: totalFrames}, (_, i) =>
+          fetch('/emotion_image?device=' + encodeURIComponent(device)
+              + '&emotion=' + encodeURIComponent(emotion)
+              + '&frame=' + i)
+            .then(r => r.ok ? r.arrayBuffer() : null)
+            .catch(() => null))
+      );
+      const valid = frames.filter(f => f);
+      if (!valid.length) return false;
+      drawBitmap(canvas, valid[0]);
+      if (valid.length > 1) {
+        let idx = 0;
+        setInterval(() => {
+          idx = (idx + 1) % valid.length;
+          drawBitmap(canvas, valid[idx]);
+        }, 250);
+      }
+      return true;
+    }
+
+    async function loadStatic(device, canvas) {
+      const res = await fetch('/pending_avatar?device=' + encodeURIComponent(device));
+      if (!res.ok) throw new Error('no avatar');
+      drawBitmap(canvas, await res.arrayBuffer());
+    }
+
+    async function loadAvatar(device, canvas, placeholder) {
+      let shownStatic = false;
+      try {
+        await loadStatic(device, canvas);
+        canvas.style.display = 'block';
+        placeholder.style.display = 'none';
+        shownStatic = true;
+      } catch (e) {}
+      try {
+        const res = await fetch('/latest_emotion?device=' + encodeURIComponent(device));
+        if (res.ok) {
+          const data = await res.json();
+          if (data.emotion) {
+            const ok = await animateEmotion(device, canvas, data.emotion);
+            if (ok) {
+              canvas.style.display = 'block';
+              placeholder.style.display = 'none';
+              return;
+            }
+          }
+        }
+      } catch (e) {}
+      if (!shownStatic) {
+        canvas.style.display = 'none';
+        placeholder.style.display = 'flex';
+      }
+    }
+
+    // Browser-made OATs get "_" + 5 hex chars. Physical devices use 6 hex chars from
+    // their MAC address, so the leading underscore guarantees the two never overlap.
+    function randomDeviceId() {
+      const chars = '0123456789ABCDEF';
+      let s = '_';
+      for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
+      return s;
+    }
+
+    window.addEventListener('pageshow', () => {
+      document.getElementById('make-btn').disabled = false;
+    });
+
+    document.getElementById('make-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('make-btn');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/all-oat-devices-list');
+        const existing = new Set((await res.json()).map(d => d.id.toUpperCase()));
+        let id = randomDeviceId();
+        while (existing.has(id)) id = randomDeviceId();
+        const reg = await fetch('/register', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({device: id}),
+        });
+        if (!reg.ok) throw new Error('register failed');
+        window.location.href = '/main?device=' + encodeURIComponent(id);
+      } catch (e) {
+        alert('Failed to create new OAT: ' + e.message);
+        btn.disabled = false;
+      }
+    });
+
+    fetch('/all-oat-devices-list')
+      .then(r => r.json())
+      .then(devices => {
+        const el = document.getElementById('gallery');
+        devices = devices.filter(d => d.current_datetime);
+        if (!devices.length) { el.innerHTML = '<p class="empty">No devices with sensor history.</p>'; return; }
+        el.innerHTML = '';
+        devices.forEach(dev => {
+          const a = document.createElement('a');
+          a.className = 'card';
+          a.href = '/main?device=' + encodeURIComponent(dev.id);
+
+          const canvas = document.createElement('canvas');
+          canvas.style.display = 'none';
+          const placeholder = document.createElement('div');
+          placeholder.className = 'placeholder';
+          placeholder.textContent = 'no avatar';
+
+          a.appendChild(canvas);
+          a.appendChild(placeholder);
+
+          if (dev.name) {
+            const name = document.createElement('div');
+            name.className = 'name';
+            name.textContent = dev.name;
+            a.appendChild(name);
+          }
+          if (dev.desp) {
+            const desp = document.createElement('div');
+            desp.className = 'desp';
+            desp.textContent = dev.desp;
+            a.appendChild(desp);
+          }
+          el.appendChild(a);
+          loadAvatar(dev.id, canvas, placeholder);
+        });
+      })
+      .catch(e => {
+        document.getElementById('gallery').innerHTML = '<p class="empty">Failed to load devices.</p>';
+      });
+  </script>
+</body>
+</html>

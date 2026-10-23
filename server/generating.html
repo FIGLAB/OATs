@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QR444NHQV7"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-QR444NHQV7');
+  </script>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OATs: Generating OAT Agent</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+  <h1>Bringing OAT to life&hellip;</h1>
+  <p class="sub">This may take a few minutes.</p>
+
+  <div class="progress-track">
+    <div id="progress-fill" class="progress-fill" style="width:0%"></div>
+  </div>
+  <div id="progress-label" class="progress-label">Starting&hellip;</div>
+
+  <canvas id="preview" width="200" height="200" style="display:none; margin:1.2em auto; image-rendering:pixelated; border:1px solid #ccc; width:200px; height:200px;"></canvas>
+
+  <div id="status"></div>
+
+  <script>
+    const params      = new URLSearchParams(window.location.search);
+    const device      = params.get('device') || '';
+    const fillEl      = document.getElementById('progress-fill');
+    const labelEl     = document.getElementById('progress-label');
+    const statusEl    = document.getElementById('status');
+    const canvas      = document.getElementById('preview');
+    const ctx         = canvas.getContext('2d');
+
+    let lastBin = '';
+
+    function renderBin(buf) {
+      const bytes = new Uint8Array(buf);
+      // 8-byte header: 2 bytes width, 2 bytes height, 4 bytes padding
+      const w = (bytes[0] << 8) | bytes[1];
+      const h = (bytes[2] << 8) | bytes[3];
+      canvas.width = w; canvas.height = h;
+      canvas.style.display = 'block';
+      const img = ctx.createImageData(w, h);
+      const data = img.data;
+      // 1-bit packed pixels start after 8-byte header
+      // PIL '1' mode packs 8 pixels per byte, MSB first, rows padded to byte boundary
+      const rowBytes = Math.ceil(w / 8);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const byteIdx = 8 + y * rowBytes + Math.floor(x / 8);
+          const bitIdx = 7 - (x % 8);
+          const on = (bytes[byteIdx] >> bitIdx) & 1;
+          const v = on ? 255 : 0;
+          const px = (y * w + x) * 4;
+          data[px] = v; data[px+1] = v; data[px+2] = v; data[px+3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    async function fetchPreview(flatName) {
+      try {
+        const res = await fetch('/download_file?device=' + encodeURIComponent(device) + '&name=' + encodeURIComponent(flatName));
+        if (res.ok) renderBin(await res.arrayBuffer());
+      } catch(e) {}
+    }
+
+    async function poll() {
+      try {
+        const res  = await fetch('/generation_progress?device=' + encodeURIComponent(device));
+        const data = await res.json();
+
+        if (data.total > 0) {
+          const pct = Math.round(data.current / data.total * 100);
+          fillEl.style.width = pct + '%';
+          labelEl.textContent = data.message + '  (' + data.current + ' / ' + data.total + ')';
+        } else {
+          labelEl.textContent = data.message;
+        }
+
+        if (data.latest_bin && data.latest_bin !== lastBin) {
+          lastBin = data.latest_bin;
+          fetchPreview(lastBin);
+        }
+
+        if (data.done) {
+          statusEl.textContent = 'Your OAT is ready! If you generated or regenerated graphics or name for your OAT, you will need to restart the OAT device.';
+          statusEl.className   = 'ok';
+          const btn = document.createElement('button');
+          btn.textContent = 'Go Back to Main Page';
+          btn.className = 'btn-primary';
+          btn.style.display = 'block';
+          btn.style.margin = '1.2em auto 0';
+          btn.addEventListener('click', () => {
+            window.location.href = '/main?device=' + encodeURIComponent(device);
+          });
+          statusEl.after(btn);
+          return;
+        }
+      } catch(e) {}
+
+      setTimeout(poll, 2000);
+    }
+
+    poll();
+  </script>
+</body>
+</html>
